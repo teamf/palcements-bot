@@ -1,7 +1,7 @@
 import io, re, os, requests, json
 import pandas as pd
 import streamlit as st
-from rapidfuzz import process, fuzz
+import difflib
 import dateparser
 from datetime import datetime, timedelta
 from openai import OpenAI
@@ -92,12 +92,13 @@ def intent_from_query(q):
     intents["window_days"] = window_days
     return intents
 
-def fuzzy_companies(df, company_col, q, topk=10, threshold=60):
-    if not company_col: return []
+def fuzzy_companies(df, company_col, q, topk=10, threshold=0.6):
+    if not company_col:
+        return []
     choices = df[company_col].astype(str).tolist()
-    results = process.extract(q, choices, scorer=fuzz.WRatio, limit=topk)
-    return [i for (_, score, i) in results if score >= threshold]
-
+    matches = difflib.get_close_matches(q, choices, n=topk, cutoff=threshold)
+    idxs = [choices.index(m) for m in matches]
+    return idxs
 def filter_by_company(df, cols, q):
     if not cols.get("company"): return df
     idxs = fuzzy_companies(df, cols["company"], q, topk=12)
@@ -206,3 +207,4 @@ else:
                 st.code(json.dumps(context_rows, indent=2), language="json")
             answer = craft_answer_with_gpt(q, context_rows)
             st.write(answer)
+
